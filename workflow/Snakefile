@@ -7,6 +7,7 @@ SEARCHES = []
 
 wildcard_constraints:
     translation_mode = "start_to_stop|stop_to_stop",
+    data_type =  "DDA|DIA"
 
 
 class AntigeneSearch:
@@ -18,6 +19,7 @@ class AntigeneSearch:
                     input_fasta=None,        # nt fasta (optional if aa_fasta given)
                     input_aa_fasta=None,     # pre-translated aa fasta (optional). For example ORFs called from Riboseq
                     translation_mode='start_to_stop',
+                    data_type='DDA',    #immunopeptidomics spectral  data  type. For reasons unknown to me, DIA  only accepts .mzML format
                     fdr_for_ip=0.01               #the default FDR value is 1%
                 ):
         assert (input_fasta is None) != (input_aa_fasta is None), \
@@ -28,6 +30,7 @@ class AntigeneSearch:
         self.input_fasta = input_fasta
         self.input_aa_fasta = input_aa_fasta
         self.translation_mode = translation_mode
+        self.data_type = data_type
         self.fdr_for_ip = fdr_for_ip
 
 
@@ -143,13 +146,14 @@ rule run_Fragpipe:
     input:
         database_for_msfragger = "_data/antigene_search/{project}/final_msfragger_database.{project}.{translation_mode}.fasta",
         immunopeptidomics_data = lambda wildcards: get_search(wildcards.project).immunopeptidomics_data,
-        workflow_template = "workflow/shell/template.workflow"
+        workflow_template = lambda wildcards: f"workflow/shell/template_{get_search(wildcards.project).data_type}.workflow"
     output:
         workflow = "_data/antigene_search/{project}/{project}.{translation_mode}.workflow",
         psm_tsv = "_data/antigene_search/{project}/fragpipe_workdir.{project}.{translation_mode}/{project}/psm.tsv"
     params:
         project = lambda wildcards: wildcards.project,
         fdr = lambda wildcards: get_search(wildcards.project).fdr_for_ip,
+        data_type = lambda wildcards: get_search(wildcards.project).data_type,
         fragpipe_workdir = "_data/antigene_search/{project}/fragpipe_workdir.{project}.{translation_mode}",
         fragpipe_tools_folder = config["fragpipe_tools_folder"],
         tmp_dir = "tmp"
@@ -171,8 +175,8 @@ rule run_Fragpipe:
         sed -e "s|^database.db-path=.*|database.db-path={input.database_for_msfragger}|" \
             -e "s|^phi-report.filter=.*|phi-report.filter=--sequential --prot 1 --group --pep {params.fdr}|" \
             "{input.workflow_template}" > "{output.workflow}"
-        ls {input.immunopeptidomics_data} | awk -v proj="{params.project}" -v ipd="{input.immunopeptidomics_data}" \
-            '{{print ipd "/" $0 "\t" proj "\t\tDDA"}}' > "_data/antigene_search/{params.project}/{params.project}.manifest"
+        ls {input.immunopeptidomics_data} | awk -v proj="{params.project}" -v ipd="{input.immunopeptidomics_data}" -v dtype="{params.data_type}"\
+            '{{print ipd "/" $0 "\t" proj "\t\t" dtype}}' > "_data/antigene_search/{params.project}/{params.project}.manifest"
         time /fragpipe_bin/fragPipe-22.0/fragpipe/bin/fragpipe --headless \
             --config-tools-folder {params.fragpipe_tools_folder} \
             --workflow {output.workflow} \
