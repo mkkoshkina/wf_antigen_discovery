@@ -49,10 +49,6 @@ rule all:
             f"_data/antigene_search/{search.project}/final_msfragger_database.{search.project}.{search.translation_mode}.fasta"
             for search in SEARCHES
         ],
-        psm_tsv = [
-            f"_data/antigene_search/{search.project}/fragpipe_workdir.{search.project}.{search.translation_mode}/{search.project}/psm.tsv"
-            for search in SEARCHES
-        ],
         xls = [
             f"_data/antigene_search/{search.project}/fragpipe_postprocessing/{search.project}.{search.translation_mode}.NetMHCpan_out.xls"
             for search in SEARCHES
@@ -182,6 +178,10 @@ rule run_Fragpipe:
             --workflow {output.workflow} \
             --manifest "_data/antigene_search/{params.project}/{params.project}.manifest" \
             --workdir {params.fragpipe_workdir}
+        if [ "{params.data_type}" = "DIA" ]; then
+            mkdir -p {params.fragpipe_workdir}/{params.project}
+            cp {params.fragpipe_workdir}/psm.tsv {params.fragpipe_workdir}/{params.project}/psm.tsv
+        fi
         '''
 
 
